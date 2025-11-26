@@ -40,6 +40,16 @@ app.get("/status", (req, res) => {
   });
 });
 
+app.get("/db-test", async (req, res) => {
+    try {
+      const { rows } = await pool.query("SELECT NOW()");
+      res.json({ ok: true, time: rows[0].now });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
 app.listen(PORT, () => {
   console.log(`Rony Motos API rodando em http://localhost:${PORT}`);
 });
