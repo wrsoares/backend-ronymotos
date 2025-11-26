@@ -1,0 +1,18 @@
+# Node
+node_modules/
+npm-debug.log
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Sistema
+.DS_Store
+
+# Nodemon
+*.log
+
+# Optional lockfiles (se NÃO quiser commitar)
+package-lock.json
+

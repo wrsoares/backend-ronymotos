@@ -1,0 +1,41 @@
+{
+  "name": "backend-ronymotos",
+  "version": "1.0.0",
+  "description": "Backend da aplicação Rony Motos",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "echo \"No tests configured\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrsoares/backend-ronymotos.git"
+  },
+  "keywords": [
+    "express",
+    "api",
+    "backend",
+    "ronymotos"
+  ],
+  "author": "William Soares",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wrsoares/backend-ronymotos/issues"
+  },
+  "homepage": "https://github.com/wrsoares/backend-ronymotos#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
