@@ -1,13 +1,13 @@
 // src/server.js
+import "dotenv/config"; // carrega .env logo no início
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
-import dotenv from "dotenv";
 import { pool } from "./config/db.js";
-import vehiclesRouter from "./routes/vehicles.js"; // <– novas rotas
-
-dotenv.config();
+import vehiclesRouter from "./routes/vehicles.js";
+import authRouter from "./routes/auth.js";
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -53,6 +53,9 @@ app.get("/db-test", async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ===== Rotas de autenticação (login, register, me) =====
+app.use("/auth", authRouter);
 
 // ===== Rotas de veículos (CRUD completo) =====
 app.use("/vehicles", vehiclesRouter);
