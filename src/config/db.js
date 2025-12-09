@@ -1,4 +1,8 @@
 // src/config/db.js
+
+// Garante que o .env é carregado antes de tudo
+import "dotenv/config";
+
 import pg from "pg";
 const { Pool } = pg;
 
