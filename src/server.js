@@ -60,6 +60,8 @@ app.use("/auth", authRouter);
 // ===== Rotas de veículos (CRUD completo) =====
 app.use("/vehicles", vehiclesRouter);
 
+app.use("/auth", authRouter);
+
 // 404 para rotas não encontradas
 app.use((req, res) => {
   res.status(404).json({

@@ -1,10 +1,9 @@
-// src/routes/vehicles.js
 import express from "express";
 import { pool } from "../config/db.js";
 import { encryptCPF, decryptCPF, extractLast4 } from "../utils/cpfCrypto.js";
 
-// + Novos imports 🔐
-import { requireAuth, requireRole } from "../middlewares/requireAuth.js";
+// Apenas autenticação, sem roles
+import { requireAuth } from "../middlewares/requireAuth.js";
 
 const router = express.Router();
 
@@ -17,11 +16,10 @@ function normalizeBody(req, res, next) {
 }
 
 /* ========= CREATE ========= */
-// 🔐 Somente ADMIN pode criar veículos
+// Qualquer usuário autenticado pode criar veículos
 router.post(
   "/",
   requireAuth,
-  requireRole("admin"),
   normalizeBody,
   async (req, res) => {
     const client = await pool.connect();
@@ -126,9 +124,9 @@ router.post(
   }
 );
 
-/* ========= LIST (sem detalhes) ========= */
-/* ROTA PÚBLICA */
-router.get("/", async (req, res) => {
+/* ========= LIST ========= */
+// Autenticação obrigatória
+router.get("/", requireAuth, async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 20;
     const offset = Number(req.query.offset) || 0;
@@ -160,8 +158,8 @@ router.get("/", async (req, res) => {
 });
 
 /* ========= GET BY ID ========= */
-/* ROTA PÚBLICA */
-router.get("/:id", async (req, res) => {
+// Autenticação obrigatória
+router.get("/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ ok: false, error: "ID inválido." });
 
@@ -234,11 +232,10 @@ router.get("/:id", async (req, res) => {
 });
 
 /* ========= UPDATE ========= */
-// 🔐 Somente ADMIN pode atualizar veículos
+// Autenticação obrigatória
 router.put(
   "/:id",
   requireAuth,
-  requireRole("admin"),
   normalizeBody,
   async (req, res) => {
     const id = Number(req.params.id);
@@ -293,12 +290,11 @@ router.put(
         return res.status(404).json({ ok: false, error: "Veículo não encontrado." });
       }
 
-      // Recria relacionamentos
       await client.query("DELETE FROM vehicle_previous_owners WHERE vehicle_id = $1;", [id]);
       await client.query("DELETE FROM vehicle_images WHERE vehicle_id = $1;", [id]);
       await client.query("DELETE FROM vehicle_documents WHERE vehicle_id = $1;", [id]);
 
-      // Reinsere donos
+      // Reinserções…
       for (let i = 0; i < owners.length; i++) {
         const o = owners[i];
         if (!o.full_name || !o.full_address || !o.cpf || !o.phone) continue;
@@ -316,7 +312,6 @@ router.put(
         );
       }
 
-      // Reinsere imagens
       if (images.length > 3) {
         throw new Error("Máximo de 3 imagens por veículo.");
       }
@@ -334,7 +329,6 @@ router.put(
         );
       }
 
-      // Reinsere documentos
       for (const doc of documents) {
         if (!doc.url) continue;
 
@@ -361,11 +355,10 @@ router.put(
 );
 
 /* ========= DELETE ========= */
-// 🔐 Somente ADMIN
+// Autenticação obrigatória
 router.delete(
   "/:id",
   requireAuth,
-  requireRole("admin"),
   async (req, res) => {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ ok: false, error: "ID inválido." });
