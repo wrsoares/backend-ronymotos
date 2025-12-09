@@ -51,29 +51,41 @@ async function storeRefreshToken(userId, token, req) {
 // ==========================================================================
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, role = "user" } = req.body;
+    const { name, username, email, phone, password, role = "user" } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ ok: false, error: "Campos obrigatórios." });
+    if (!name || !username || !password) {
+      return res.status(400).json({ ok: false, error: "Nome, username e senha são obrigatórios." });
     }
 
-    const exists = await pool.query("SELECT 1 FROM users WHERE email = $1", [
-      email
-    ]);
+    // Username único
+    const existsUsername = await pool.query(
+      "SELECT 1 FROM users WHERE username = $1",
+      [username]
+    );
+    if (existsUsername.rows.length) {
+      return res.status(409).json({ ok: false, error: "Username já está em uso." });
+    }
 
-    if (exists.rows.length) {
-      return res.status(409).json({ ok: false, error: "E-mail já cadastrado." });
+    // Telefone único (se enviado)
+    if (phone) {
+      const existsPhone = await pool.query(
+        "SELECT 1 FROM users WHERE phone = $1",
+        [phone]
+      );
+      if (existsPhone.rows.length) {
+        return res.status(409).json({ ok: false, error: "Telefone já está em uso." });
+      }
     }
 
     const hash = await bcrypt.hash(password, 10);
 
     const { rows } = await pool.query(
       `
-      INSERT INTO users (name, email, password_hash, role)
-      VALUES ($1,$2,$3,$4)
-      RETURNING id, name, email, role, created_at
+      INSERT INTO users (name, username, email, phone, password_hash, role)
+      VALUES ($1,$2,$3,$4,$5,$6)
+      RETURNING id, name, username, email, phone, role, created_at
       `,
-      [name, email, hash, role]
+      [name, username, email || null, phone || null, hash, role]
     );
 
     res.status(201).json({ ok: true, user: rows[0] });
@@ -83,16 +95,17 @@ router.post("/register", async (req, res) => {
   }
 });
 
+
 // ==========================================================================
 // LOGIN
 // ==========================================================================
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
     const { rows } = await pool.query(
-      `SELECT * FROM users WHERE email = $1 LIMIT 1`,
-      [email]
+      `SELECT * FROM users WHERE username = $1 LIMIT 1`,
+      [username]
     );
 
     if (!rows.length)
@@ -118,15 +131,19 @@ router.post("/login", async (req, res) => {
       user: {
         id: user.id,
         name: user.name,
+        username: user.username,
         email: user.email,
+        phone: user.phone,       // ← TELEFONE AQUI
         role: user.role
       }
     });
+
   } catch (err) {
     console.error("LOGIN error:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
 
 // ==========================================================================
 // REFRESH
@@ -206,10 +223,12 @@ router.post("/logout", requireAuth, async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const { id } = req.user;
+
     const { rows } = await pool.query(
-      `SELECT id, name, email, role, created_at FROM users WHERE id = $1`,
+      `SELECT id, name, username, email, phone, role, created_at FROM users WHERE id = $1`,
       [id]
     );
+
     res.json({ ok: true, user: rows[0] });
   } catch (err) {
     console.error("ME error:", err);
