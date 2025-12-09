@@ -8,6 +8,7 @@ import morgan from "morgan";
 import { pool } from "./config/db.js";
 import vehiclesRouter from "./routes/vehicles.js";
 import authRouter from "./routes/auth.js";
+import uploadsRouter from "./routes/uploads.js";
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -60,7 +61,11 @@ app.use("/auth", authRouter);
 // ===== Rotas de veículos (CRUD completo) =====
 app.use("/vehicles", vehiclesRouter);
 
+// Rotas de autenticação
 app.use("/auth", authRouter);
+
+// Rotas de upload
+app.use("/uploads", uploadsRouter);
 
 // 404 para rotas não encontradas
 app.use((req, res) => {
