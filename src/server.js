@@ -5,14 +5,16 @@ import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import { pool } from "./config/db.js";
+import vehiclesRouter from "./routes/vehicles.js"; // <– novas rotas
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5002;
 
+// Middlewares globais
 app.use(helmet());
-app.use(express.json());
+app.use(express.json()); // se quiser, pode aumentar o limite: express.json({ limit: "2mb" })
 app.use(morgan("dev"));
 
 app.use(
@@ -27,12 +29,12 @@ app.use(
   })
 );
 
-// Healthcheck
+// Healthcheck simples
 app.get("/", (req, res) => {
   res.send("API Rony Motos (ESM) OK");
 });
 
-// Exemplo
+// Status da API
 app.get("/status", (req, res) => {
   res.json({
     ok: true,
@@ -41,16 +43,28 @@ app.get("/status", (req, res) => {
   });
 });
 
+// Teste de conexão com o banco
 app.get("/db-test", async (req, res) => {
-    try {
-      const { rows } = await pool.query("SELECT NOW()");
-      res.json({ ok: true, time: rows[0].now });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ ok: false, error: err.message });
-    }
-  });
+  try {
+    const { rows } = await pool.query("SELECT NOW()");
+    res.json({ ok: true, time: rows[0].now });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
-app.listen(PORT, () => {
-  console.log(`Rony Motos API rodando em http://localhost:${PORT}`);
+// ===== Rotas de veículos (CRUD completo) =====
+app.use("/vehicles", vehiclesRouter);
+
+// 404 para rotas não encontradas
+app.use((req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: "Rota não encontrada"
+  });
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`API Rony Motos online → porta ${PORT}`);
 });
