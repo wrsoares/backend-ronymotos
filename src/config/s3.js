@@ -1,6 +1,6 @@
 // src/config/s3.js
 import "dotenv/config";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
 const region = process.env.AWS_REGION || "us-east-1";
 const bucket = process.env.S3_BUCKET_RONYMOTOS;
@@ -11,15 +11,12 @@ if (!bucket) {
 
 export const s3Client = new S3Client({
   region,
-  // credenciais virão da IAM Role da EC2 (melhor prática)
+  // credenciais vêm da IAM Role da EC2
 });
 
 /**
  * Faz upload de um buffer para o S3.
- * @param {Buffer} buffer
- * @param {string} key
- * @param {string} contentType
- * @returns {Promise<string>} URL pública do arquivo
+ * Retorna SOMENTE a key armazenada no bucket.
  */
 export async function uploadBufferToS3(buffer, key, contentType) {
   if (!bucket) {
@@ -31,19 +28,32 @@ export async function uploadBufferToS3(buffer, key, contentType) {
     Key: key,
     Body: buffer,
     ContentType: contentType,
-    ACL: "public-read" // se quiser objetos públicos direto
+    // ❌ nada de ACL aqui, bucket continua privado
   });
 
   await s3Client.send(command);
 
-  // Monta URL pública
-  const baseUrl = process.env.S3_PUBLIC_BASE_URL?.trim();
-  if (baseUrl) {
-    return `${baseUrl.replace(/\/$/, "")}/${key}`;
+  // Em vez de URL pública, devolvemos só a key
+  return key;
+}
+
+/**
+ * Obtém o objeto do S3 para streaming.
+ */
+export async function getObjectFromS3(key) {
+  if (!bucket) {
+    throw new Error("Bucket S3 não configurado (S3_BUCKET_RONYMOTOS).");
   }
 
-  // URL padrão do S3
-  return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
-    key
-  )}`;
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key
+  });
+
+  const resp = await s3Client.send(command);
+  // resp.Body é um ReadableStream (Node.js Readable)
+  return {
+    stream: resp.Body,
+    contentType: resp.ContentType || "application/octet-stream"
+  };
 }

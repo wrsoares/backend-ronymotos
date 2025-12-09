@@ -3,7 +3,7 @@ import express from "express";
 import multer from "multer";
 import crypto from "crypto";
 import path from "path";
-import { uploadBufferToS3 } from "../config/s3.js";
+import { uploadBufferToS3, getObjectFromS3 } from "../config/s3.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 
 const router = express.Router();
@@ -15,15 +15,25 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024 // 5MB
   },
   fileFilter: (req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const allowed = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "application/pdf"      // ✅ agora aceita PDF também
+    ];
+
     if (!allowed.includes(file.mimetype)) {
-      return cb(new Error("Formato de imagem não suportado."), false);
+      return cb(
+        new Error("Formato não suportado. Envie imagens (JPG, PNG, GIF, WEBP) ou PDF."),
+        false
+      );
     }
     cb(null, true);
   }
 });
 
-// POST /uploads/images
+// ========= POST /uploads/images (upload protegido) =========
 router.post(
   "/images",
   requireAuth,           // só usuário logado pode enviar
@@ -39,16 +49,15 @@ router.post(
       const { buffer, originalname, mimetype } = req.file;
 
       // Gera um nome único
-      const ext = path.extname(originalname) || ".jpg";
+      const ext = path.extname(originalname) || ".bin";
       const randomName = crypto.randomBytes(16).toString("hex");
       const key = `vehicles/${randomName}${ext}`; // pasta 'vehicles/' no bucket
 
-      const url = await uploadBufferToS3(buffer, key, mimetype);
+      const storedKey = await uploadBufferToS3(buffer, key, mimetype);
 
       return res.status(201).json({
         ok: true,
-        url,
-        key
+        key: storedKey
       });
     } catch (err) {
       console.error("UPLOAD /uploads/images error:", err);
@@ -56,5 +65,21 @@ router.post(
     }
   }
 );
+
+// ========= GET /uploads/images/:key (acesso protegido) =========
+router.get("/images/:key", requireAuth, async (req, res) => {
+  try {
+    const rawKey = req.params.key;
+    const key = decodeURIComponent(rawKey);
+
+    const { stream, contentType } = await getObjectFromS3(key);
+
+    res.setHeader("Content-Type", contentType || "application/octet-stream");
+    stream.pipe(res);
+  } catch (err) {
+    console.error("GET /uploads/images/:key error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 export default router;
