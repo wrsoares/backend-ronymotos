@@ -13,11 +13,23 @@ import uploadsRouter from "./routes/uploads.js";
 const app = express();
 const PORT = process.env.PORT || 5002;
 
-// Middlewares globais
-app.use(helmet());
+// ===== Middlewares globais =====
+
+// Helmet com ajustes para não bloquear imagens em outros subdomínios
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false, // permite que outros domínios/subdomínios carreguem recursos (ex: <img>)
+    crossOriginEmbedderPolicy: false  // evita problemas com COEP em alguns navegadores
+  })
+);
+
+// Parse de JSON
 app.use(express.json()); // se quiser, pode aumentar o limite: express.json({ limit: "2mb" })
+
+// Logs
 app.use(morgan("dev"));
 
+// CORS
 app.use(
   cors({
     origin: [
@@ -29,6 +41,8 @@ app.use(
     credentials: true
   })
 );
+
+// ===== Rotas básicas =====
 
 // Healthcheck simples
 app.get("/", (req, res) => {
@@ -61,10 +75,7 @@ app.use("/auth", authRouter);
 // ===== Rotas de veículos (CRUD completo) =====
 app.use("/vehicles", vehiclesRouter);
 
-// Rotas de autenticação
-app.use("/auth", authRouter);
-
-// Rotas de upload
+// ===== Rotas de upload (S3, imagens etc.) =====
 app.use("/uploads", uploadsRouter);
 
 // 404 para rotas não encontradas
