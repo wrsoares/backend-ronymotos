@@ -343,11 +343,11 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
           `
             UPDATE sales_installments
             SET paid_amount = $1,
-                status = $2,
-                paid_at = CASE WHEN $2 = 'paid' THEN NOW() ELSE paid_at END
+                status = $2::installment_status,
+                paid_at = CASE WHEN ($2::installment_status) = 'paid' THEN NOW() ELSE paid_at END
             WHERE id = $3
           `,
-          [newPaid, fullyPaid ? "paid" : "partial", installment_id]
+          [newPaid, fullyPaid ? 'paid' : 'partial', installment_id]
         );
       }
     }
