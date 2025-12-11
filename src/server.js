@@ -9,6 +9,7 @@ import { pool } from "./config/db.js";
 import vehiclesRouter from "./routes/vehicles.js";
 import authRouter from "./routes/auth.js";
 import uploadsRouter from "./routes/uploads.js";
+import salesRouter from "./routes/sales.js";
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -77,6 +78,9 @@ app.use("/vehicles", vehiclesRouter);
 
 // ===== Rotas de upload (S3, imagens etc.) =====
 app.use("/uploads", uploadsRouter);
+
+// ===== Rotas de vendas =====
+app.use("/sales", salesRouter);
 
 // 404 para rotas não encontradas
 app.use((req, res) => {
