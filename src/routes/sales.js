@@ -365,10 +365,8 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
               `,
               [remainder, nextId]
             );
-            // Marca a atual como quitada (saldo passou para a próxima)
-            fullyPaid = true;
-            newPaid = Number(inst.amount_due);
-            remainder = 0;
+            // Mantém status da atual como parcial (não marcar como quitada)
+            fullyPaid = false;
           }
         }
 
