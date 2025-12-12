@@ -399,6 +399,18 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
           [newPaid, fullyPaid ? 'paid' : 'partial', installmentUuid]
         );
       }
+    } else {
+      // Pagamento sem parcela específica: tratar como quitação/distribuição total
+      await client.query(
+        `
+          UPDATE sales_installments
+          SET paid_amount = amount_due,
+              status = 'paid'::installment_status,
+              paid_at = NOW()
+          WHERE sale_id = $1
+        `,
+        [effectiveSaleId]
+      );
     }
 
     // 2.1 Se o pagamento quitou o valor total restante, marcar todas parcelas como pagas
