@@ -383,6 +383,30 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
       }
     }
 
+    // 2.1 Se o pagamento quitou o valor total restante, marcar todas parcelas como pagas
+    const remainingRes = await client.query(
+      `
+        SELECT COALESCE(SUM(amount_due - paid_amount), 0) AS remaining
+        FROM sales_installments
+        WHERE sale_id = $1
+      `,
+      [id]
+    );
+    const remaining = Number(remainingRes.rows[0]?.remaining || 0);
+
+    if (remaining <= 0) {
+      await client.query(
+        `
+          UPDATE sales_installments
+          SET paid_amount = amount_due,
+              status = 'paid'::installment_status,
+              paid_at = COALESCE(paid_at, NOW())
+          WHERE sale_id = $1
+        `,
+        [id]
+      );
+    }
+
     // 3. recalcular status da venda
     await recalcSaleStatus(client, id);
 
