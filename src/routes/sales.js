@@ -297,6 +297,7 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { installment_id, amount_paid, method, notes } = req.body;
+    let effectiveSaleId = id;
 
     if (!amount_paid || !method) {
       return res
@@ -305,6 +306,23 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
     }
 
     await client.query("BEGIN");
+
+    // Se veio installment_id, descobrimos o sale_id correto a partir da parcela (evita FK inválida)
+    if (installment_id) {
+      const instSale = await client.query(
+        `
+          SELECT sale_id
+          FROM sales_installments
+          WHERE id = $1::uuid
+        `,
+        [installment_id]
+      );
+      if (!instSale.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Parcela não encontrada." });
+      }
+      effectiveSaleId = instSale.rows[0].sale_id;
+    }
 
     // 1. criar pagamento
     await client.query(
@@ -319,7 +337,7 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
         )
         VALUES ($1,$2,$3,$4,false,$5)
       `,
-      [id, installment_id || null, amount_paid, method, notes || null]
+      [effectiveSaleId, installment_id || null, amount_paid, method, notes || null]
     );
 
     // 2. atualizar parcela (se informado installment_id)
@@ -352,7 +370,7 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
               LIMIT 1
               FOR UPDATE
             `,
-            [id, inst.number]
+            [effectiveSaleId, inst.number]
           );
 
           if (nextRes.rows.length) {
@@ -390,7 +408,7 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
         FROM sales_installments
         WHERE sale_id = $1
       `,
-      [id]
+      [effectiveSaleId]
     );
     const remaining = Number(remainingRes.rows[0]?.remaining || 0);
 
@@ -403,12 +421,12 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
               paid_at = COALESCE(paid_at, NOW())
           WHERE sale_id = $1
         `,
-        [id]
+        [effectiveSaleId]
       );
     }
 
     // 3. recalcular status da venda
-    await recalcSaleStatus(client, id);
+    await recalcSaleStatus(client, effectiveSaleId);
 
     await client.query("COMMIT");
 
