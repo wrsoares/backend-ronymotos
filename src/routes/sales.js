@@ -296,7 +296,7 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { installment_id, amount_paid, method, notes } = req.body;
+    const { installment_id, amount_paid, method, notes } = req.body || {};
     let effectiveSaleId = id;
 
     if (!amount_paid || !method) {
