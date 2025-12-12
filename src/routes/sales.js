@@ -324,14 +324,15 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
 
     // 2. atualizar parcela (se informado installment_id)
     if (installment_id) {
+      const installmentUuid = installment_id;
       const instResult = await client.query(
         `
           SELECT amount_due, paid_amount
           FROM sales_installments
-          WHERE id = $1
+          WHERE id = $1::uuid
           FOR UPDATE
         `,
-        [installment_id]
+        [installmentUuid]
       );
 
       if (instResult.rows.length) {
@@ -345,9 +346,9 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
             SET paid_amount = $1,
                 status = $2::installment_status,
                 paid_at = CASE WHEN ($2::installment_status) = 'paid' THEN NOW() ELSE paid_at END
-            WHERE id = $3
+            WHERE id = $3::uuid
           `,
-          [newPaid, fullyPaid ? 'paid' : 'partial', installment_id]
+          [newPaid, fullyPaid ? 'paid' : 'partial', installmentUuid]
         );
       }
     }
