@@ -327,7 +327,7 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
       const installmentUuid = installment_id;
       const instResult = await client.query(
         `
-          SELECT amount_due, paid_amount
+          SELECT amount_due, paid_amount, number
           FROM sales_installments
           WHERE id = $1::uuid
           FOR UPDATE
@@ -337,8 +337,40 @@ router.post("/:id/payments", requireAuth, async (req, res) => {
 
       if (instResult.rows.length) {
         const inst = instResult.rows[0];
-        const newPaid = Number(inst.paid_amount) + Number(amount_paid);
-        const fullyPaid = newPaid >= Number(inst.amount_due);
+        let newPaid = Number(inst.paid_amount) + Number(amount_paid);
+        let fullyPaid = newPaid >= Number(inst.amount_due);
+        let remainder = Number(inst.amount_due) - newPaid;
+
+        // Se pagamento parcial e há próxima parcela, move o restante para a próxima
+        if (!fullyPaid && remainder > 0) {
+          const nextRes = await client.query(
+            `
+              SELECT id
+              FROM sales_installments
+              WHERE sale_id = $1 AND number > $2
+              ORDER BY number ASC
+              LIMIT 1
+              FOR UPDATE
+            `,
+            [id, inst.number]
+          );
+
+          if (nextRes.rows.length) {
+            const nextId = nextRes.rows[0].id;
+            await client.query(
+              `
+                UPDATE sales_installments
+                SET amount_due = amount_due + $1
+                WHERE id = $2::uuid
+              `,
+              [remainder, nextId]
+            );
+            // Marca a atual como quitada (saldo passou para a próxima)
+            fullyPaid = true;
+            newPaid = Number(inst.amount_due);
+            remainder = 0;
+          }
+        }
 
         await client.query(
           `
