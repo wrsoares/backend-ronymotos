@@ -13,6 +13,34 @@ const __dirname = path.dirname(__filename);
 
 const TEMPLATE_PATH = path.join(__dirname, "..", "templates", "contrato.docx");
 
+const PLACEHOLDERS = [
+  "comprador",
+  "comprador_cpf",
+  "comprador_endereco",
+  "comprador_telefone",
+  "veiculo_modelo",
+  "veiculo_ano",
+  "veiculo_cor",
+  "veiculo_placa",
+  "valor_venda",
+  "valor_sinal",
+  "qtd_parcelas",
+  "valor_parcelas",
+  "data_pagamento_parcela",
+  "dia_venda",
+  "mes_venda",
+  "ano_venda",
+];
+
+function escapeXml(str = "") {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 /**
  * Preenche o template contrato.docx com os dados informados
  * e grava um arquivo DOCX temporário. Retorna o objeto tmpFile.
@@ -20,30 +48,20 @@ const TEMPLATE_PATH = path.join(__dirname, "..", "templates", "contrato.docx");
 export function generateFilledDocx(contractData) {
   const content = fs.readFileSync(TEMPLATE_PATH);
 
+  // Em vez de usar o Docxtemplater (que acusa template quebrado),
+  // fazemos substituição direta no XML do documento.
   const zip = new PizZip(content);
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-    nullGetter: () => "", // evita erro de placeholder ausente
+  let xml = zip.file("word/document.xml").asText();
+
+  PLACEHOLDERS.forEach((key) => {
+    const value = escapeXml(contractData[key] || "");
+    const re = new RegExp(`{{\\s*${key}\\s*}}`, "g");
+    xml = xml.replace(re, value);
   });
 
-  doc.setData(contractData);
+  zip.file("word/document.xml", xml);
 
-  try {
-    doc.render();
-  } catch (error) {
-    if (error?.properties?.errors?.length) {
-      console.error("Erro ao renderizar DOCX (detalhes):");
-      error.properties.errors.forEach((e, idx) => {
-        console.error(`#${idx + 1}: ${e.properties?.explanation || e.message || e}`);
-      });
-    } else {
-      console.error("Erro ao renderizar DOCX:", error);
-    }
-    throw error;
-  }
-
-  const buf = doc.getZip().generate({ type: "nodebuffer" });
+  const buf = zip.generate({ type: "nodebuffer" });
 
   // cria arquivo temporário .docx
   const tmpFile = tmp.fileSync({ postfix: ".docx" });
