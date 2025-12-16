@@ -57,9 +57,10 @@ export function generateFilledDocx(contractData) {
   const zip = new PizZip(content);
   let xml = zip.file("word/document.xml").asText();
 
-  // Normaliza placeholders que o Word quebrou em múltiplos <w:t> dentro das chaves {{ }}
+  // Normaliza placeholders que o Word quebrou em múltiplos <w:t> / <w:r>
+  // Remove quaisquer tags internas dentro de {{ ... }} deixando apenas o texto da chave.
   xml = xml.replace(/{{[\s\S]*?}}/g, (placeholder) =>
-    placeholder.replace(/<\/w:t><w:t[^>]*>/g, "")
+    placeholder.replace(/<[^>]+>/g, "")
   );
 
   PLACEHOLDERS.forEach((key) => {
