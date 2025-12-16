@@ -92,7 +92,7 @@ router.get("/:saleId/pdf", async (req, res) => {
       dia_venda: sale.sale_date
         ? new Date(sale.sale_date).getDate().toString().padStart(2, "0")
         : "",
-      mês_venda: sale.sale_date
+      mes_venda: sale.sale_date
         ? new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(
             new Date(sale.sale_date)
           )
