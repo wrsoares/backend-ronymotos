@@ -128,6 +128,12 @@ router.get("/:saleId/pdf", async (req, res) => {
       }
     });
   } catch (err) {
+    if (err?.properties?.errors?.length) {
+      console.error("Erro ao gerar contrato PDF (detalhes):");
+      err.properties.errors.forEach((e, idx) => {
+        console.error(`#${idx + 1}: ${e.properties?.explanation || e.message || e}`);
+      });
+    }
     console.error("Erro ao gerar contrato PDF:", err);
     return res.status(500).json({ error: "Erro ao gerar contrato." });
   } finally {

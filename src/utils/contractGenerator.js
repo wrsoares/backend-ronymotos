@@ -24,6 +24,7 @@ export function generateFilledDocx(contractData) {
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
+    nullGetter: () => "", // evita erro de placeholder ausente
   });
 
   doc.setData(contractData);
