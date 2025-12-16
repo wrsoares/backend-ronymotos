@@ -81,8 +81,8 @@ export function convertDocxToPdf(docxTmpFile) {
     const outputDir = path.dirname(inputPath);
     const fileName = path.basename(inputPath);
 
-    // Tenta converter com LibreOffice instalado no host
-    const args = [
+    // Primeiro tenta usar soffice local
+    const localArgs = [
       "--headless",
       "--convert-to",
       "pdf",
@@ -91,25 +91,51 @@ export function convertDocxToPdf(docxTmpFile) {
       outputDir,
     ];
 
-    execFile("soffice", args, { cwd: outputDir }, (error, stdout, stderr) => {
-      if (error) {
-        console.error("Erro na conversão LibreOffice (soffice):", error);
-        console.error("STDERR:", stderr);
-        return reject(
-          new Error(
-            "Falha ao converter para PDF. Verifique se o LibreOffice (soffice) está instalado e acessível."
-          )
-        );
+    execFile("soffice", localArgs, { cwd: outputDir }, (localErr, localStdout, localStderr) => {
+      if (!localErr) {
+        const pdfPath = inputPath.replace(/\.docx?$/i, ".pdf");
+        if (!fs.existsSync(pdfPath)) {
+          console.error("STDOUT:", localStdout);
+          return reject(new Error("PDF não foi gerado."));
+        }
+        return resolve(pdfPath);
       }
 
-      const pdfPath = inputPath.replace(/\.docx?$/i, ".pdf");
+      // Fallback: docker com sudo (libreoffice container)
+      console.warn("soffice não disponível, tentando via docker (sudo)...");
+      const dockerArgs = [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        `${outputDir}:/workspace`,
+        "ghcr.io/linuxserver/libreoffice:latest",
+        "--headless",
+        "--convert-to",
+        "pdf",
+        fileName,
+      ];
 
-      if (!fs.existsSync(pdfPath)) {
-        console.error("STDOUT:", stdout);
-        return reject(new Error("PDF não foi gerado."));
-      }
+      execFile("sudo", dockerArgs, { cwd: outputDir }, (error, stdout, stderr) => {
+        if (error) {
+          console.error("Erro na conversão LibreOffice via Docker (sudo):", error);
+          console.error("STDERR:", stderr);
+          return reject(
+            new Error(
+              "Falha ao converter para PDF via Docker. Verifique permissões do Docker ou instalação do LibreOffice."
+            )
+          );
+        }
 
-      resolve(pdfPath);
+        const pdfPath = inputPath.replace(/\.docx?$/i, ".pdf");
+
+        if (!fs.existsSync(pdfPath)) {
+          console.error("STDOUT:", stdout);
+          return reject(new Error("PDF não foi gerado."));
+        }
+
+        resolve(pdfPath);
+      });
     });
   });
 }
