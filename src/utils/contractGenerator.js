@@ -71,7 +71,7 @@ export function generateFilledDocx(contractData) {
 }
 
 /**
- * Converte um DOCX em PDF usando LibreOffice dentro de um container Docker.
+ * Converte um DOCX em PDF usando LibreOffice (soffice --headless) instalado no host.
  * Recebe o objeto tmpFile retornado por generateFilledDocx.
  * Retorna o caminho do PDF gerado.
  */
@@ -81,25 +81,25 @@ export function convertDocxToPdf(docxTmpFile) {
     const outputDir = path.dirname(inputPath);
     const fileName = path.basename(inputPath);
 
-    // docker precisa enxergar o arquivo dentro de /workspace
-    // mapeamos outputDir -> /workspace e rodamos o LibreOffice lá dentro
+    // Tenta converter com LibreOffice instalado no host
     const args = [
-      "run",
-      "--rm",
-      "-v",
-      `${outputDir}:/workspace`,
-      "ghcr.io/linuxserver/libreoffice:latest",
       "--headless",
       "--convert-to",
       "pdf",
       fileName,
+      "--outdir",
+      outputDir,
     ];
 
-    execFile("docker", args, { cwd: outputDir }, (error, stdout, stderr) => {
+    execFile("soffice", args, { cwd: outputDir }, (error, stdout, stderr) => {
       if (error) {
-        console.error("Erro na conversão LibreOffice via Docker:", error);
+        console.error("Erro na conversão LibreOffice (soffice):", error);
         console.error("STDERR:", stderr);
-        return reject(error);
+        return reject(
+          new Error(
+            "Falha ao converter para PDF. Verifique se o LibreOffice (soffice) está instalado e acessível."
+          )
+        );
       }
 
       const pdfPath = inputPath.replace(/\.docx?$/i, ".pdf");
