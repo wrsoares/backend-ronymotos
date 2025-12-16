@@ -44,6 +44,24 @@ router.get("/:saleId/pdf", async (req, res) => {
 
     const sale = rows[0];
 
+    // Busca parcelas (se existirem) para preencher campos de parcela
+    const installmentsResult = await client.query(
+      `
+        SELECT number, due_date, amount_due
+        FROM sales_installments
+        WHERE sale_id = $1
+        ORDER BY number ASC
+      `,
+      [saleId]
+    );
+
+    const installments = installmentsResult.rows || [];
+    const firstInstallment = installments[0];
+    const formatCurrency = (value) => {
+      const n = Number(value) || 0;
+      return n.toFixed(2).replace(".", ",");
+    };
+
     // 2. Monta o objeto de dados para o template DOCX (as chaves {{...}})
     const contractData = {
       comprador: sale.buyer_name,
@@ -57,14 +75,19 @@ router.get("/:saleId/pdf", async (req, res) => {
       veiculo_placa: sale.plate || "",
       veiculo_chassi: sale.chassis || "",
 
-      valor_venda: sale.total_price?.toFixed(2).replace(".", ",") || "",
-      valor_sinal: sale.entry_amount
-        ? `R$ ${sale.entry_amount.toFixed(2).replace(".", ",")} de entrada`
+      valor_venda: formatCurrency(sale.total_price),
+      valor_sinal: Number(sale.entry_amount)
+        ? `R$ ${formatCurrency(sale.entry_amount)} de entrada`
         : "Sem entrada",
-      // aqui você pode adaptar para puxar das parcelas:
-      qtd_parcelas: "… parcelas", // TODO: preencher com base em sales_installments
-      valor_parcelas: "R$ …",     // TODO: idem
-      data_pagamento_parcela: "…", // TODO: idem (ex: "todo dia 15"),
+      qtd_parcelas: installments.length
+        ? `${installments.length} parcelas`
+        : "Pagamento à vista",
+      valor_parcelas: installments.length
+        ? `R$ ${formatCurrency(firstInstallment.amount_due)}`
+        : "",
+      data_pagamento_parcela: installments.length
+        ? new Date(firstInstallment.due_date).toLocaleDateString("pt-BR")
+        : "",
 
       dia_venda: sale.sale_date
         ? new Date(sale.sale_date).getDate().toString().padStart(2, "0")
