@@ -57,11 +57,10 @@ export function generateFilledDocx(contractData) {
   const zip = new PizZip(content);
   let xml = zip.file("word/document.xml").asText();
 
-  // Normaliza placeholders que podem ter sido quebrados em múltiplos <w:t>
-  PLACEHOLDERS.forEach((key) => {
-    const splitRegex = new RegExp(`{{[\\s\\S]*?${key}[\\s\\S]*?}}`, "g");
-    xml = xml.replace(splitRegex, `{{${key}}}`);
-  });
+  // Normaliza placeholders que o Word quebrou em múltiplos <w:t> dentro das chaves {{ }}
+  xml = xml.replace(/{{[\s\S]*?}}/g, (placeholder) =>
+    placeholder.replace(/<\/w:t><w:t[^>]*>/g, "")
+  );
 
   PLACEHOLDERS.forEach((key) => {
     const value = escapeXml(contractData[key] || "");
