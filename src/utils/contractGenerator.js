@@ -31,7 +31,14 @@ export function generateFilledDocx(contractData) {
   try {
     doc.render();
   } catch (error) {
-    console.error("Erro ao renderizar DOCX:", error);
+    if (error?.properties?.errors?.length) {
+      console.error("Erro ao renderizar DOCX (detalhes):");
+      error.properties.errors.forEach((e, idx) => {
+        console.error(`#${idx + 1}: ${e.properties?.explanation || e.message || e}`);
+      });
+    } else {
+      console.error("Erro ao renderizar DOCX:", error);
+    }
     throw error;
   }
 
