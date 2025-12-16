@@ -146,10 +146,15 @@ router.get("/:saleId/pdf", async (req, res) => {
       try {
         docxTmpFile.removeCallback(); // remove o .docx
         if (fs.existsSync(pdfPath)) {
-          fs.rmSync(pdfPath, { force: true }); // remove o .pdf, ignora erro de permissão
+          const stat = fs.statSync(pdfPath);
+          if (stat.isFile()) {
+            fs.unlinkSync(pdfPath);
+          }
         }
       } catch (e) {
-        console.error("Erro ao apagar temporários:", e?.message || e);
+        if (!["ENOENT", "ENOTDIR", "EPERM", "EACCES"].includes(e?.code)) {
+          console.error("Erro ao apagar temporários:", e?.message || e);
+        }
       }
     });
   } catch (err) {
