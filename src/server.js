@@ -10,6 +10,7 @@ import vehiclesRouter from "./routes/vehicles.js";
 import authRouter from "./routes/auth.js";
 import uploadsRouter from "./routes/uploads.js";
 import salesRouter from "./routes/sales.js";
+import contractsRouter from "./routes/contracts.js";
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -81,6 +82,10 @@ app.use("/uploads", uploadsRouter);
 
 // ===== Rotas de vendas =====
 app.use("/sales", salesRouter);
+
+// ===== Geração de contrato =====
+app.use("/contracts", contractsRouter);
+
 
 // 404 para rotas não encontradas
 app.use((req, res) => {
