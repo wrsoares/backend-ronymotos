@@ -57,10 +57,34 @@ router.get("/:saleId/pdf", async (req, res) => {
 
     const installments = installmentsResult.rows || [];
     const firstInstallment = installments[0];
+    const lastInstallment = installments[installments.length - 1];
+    const isInstallment = installments.length > 0;
+    const formatDate = (d) =>
+      d ? new Date(d).toLocaleDateString("pt-BR") : "";
     const formatCurrency = (value) => {
       const n = Number(value) || 0;
       return n.toFixed(2).replace(".", ",");
     };
+    const valorVendaStr = formatCurrency(sale.total_price);
+    const valorSinalStr = Number(sale.entry_amount)
+      ? `R$ ${formatCurrency(sale.entry_amount)} de entrada`
+      : "Sem entrada";
+    const tipoPagamentoStr = isInstallment
+      ? "Parcelado com entrada"
+      : "À vista";
+    const dataPrimeiraParcela = isInstallment
+      ? formatDate(firstInstallment?.due_date)
+      : "";
+    const dataUltimaParcela = isInstallment
+      ? formatDate(lastInstallment?.due_date)
+      : "";
+    const paragrafoBase = `O valor da presente negociação, ajustado livremente entre as partes, é de R$ ${valorVendaStr}, que será pago nas seguintes condições: ${tipoPagamentoStr}.`;
+    const paragrafoParcelado = isInstallment
+      ? `Com valor de entrada ${valorSinalStr} e o valor restante dividido em ${installments.length} parcelas com valor de R$ ${formatCurrency(firstInstallment?.amount_due || 0)}. Com as parcelas iniciando em ${dataPrimeiraParcela} e finalizando em ${dataUltimaParcela}.`
+      : "";
+    const condicoesPagamento = paragrafoParcelado
+      ? `${paragrafoBase}\n\n${paragrafoParcelado}`
+      : paragrafoBase;
 
     // 2. Monta o objeto de dados para o template DOCX (as chaves {{...}})
     const contractData = {
@@ -69,25 +93,24 @@ router.get("/:saleId/pdf", async (req, res) => {
       comprador_endereco: sale.buyer_address || "",
       comprador_telefone: sale.buyer_phone || "",
 
+      tipo_pagamento: tipoPagamentoStr,
+      condicoes_pagamento: condicoesPagamento,
+
       veiculo_modelo: sale.model,
       veiculo_ano: sale.year?.toString() || "",
       veiculo_cor: sale.color || "",
       veiculo_placa: sale.plate || "",
       veiculo_chassi: sale.chassis || "",
 
-      valor_venda: formatCurrency(sale.total_price),
-      valor_sinal: Number(sale.entry_amount)
-        ? `R$ ${formatCurrency(sale.entry_amount)} de entrada`
-        : "Sem entrada",
-      qtd_parcelas: installments.length
-        ? `${installments.length} parcelas`
-        : "Pagamento à vista",
-      valor_parcelas: installments.length
-        ? `R$ ${formatCurrency(firstInstallment.amount_due)}`
+      valor_venda: valorVendaStr,
+      valor_sinal: isInstallment ? valorSinalStr : "",
+      qtd_parcelas: isInstallment ? `${installments.length} parcelas` : "",
+      valor_parcelas: isInstallment
+        ? `R$ ${formatCurrency(firstInstallment?.amount_due)}`
         : "",
-      data_pagamento_parcela: installments.length
-        ? new Date(firstInstallment.due_date).toLocaleDateString("pt-BR")
-        : "",
+      data_pagamento_parcela: isInstallment ? dataPrimeiraParcela : "",
+      data_pagamento_primeira_parcela: dataPrimeiraParcela,
+      data_pagamento_ultima_parcela: dataUltimaParcela,
 
       dia_venda: sale.sale_date
         ? new Date(sale.sale_date).getDate().toString().padStart(2, "0")

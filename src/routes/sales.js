@@ -47,6 +47,8 @@ async function recalcSaleStatus(client, saleId) {
  *   total_price: number,
  *   entry_amount?: number,
  *   sale_date?: string (YYYY-MM-DD),
+ *   payment_type?: "cash" | "installment",
+ *   payment_date?: string (YYYY-MM-DD),
  *   notes?: string,
  *   installments: [{ number, due_date, amount_due }],
  *   entry_method?: "cash" | "pix" | ...
@@ -66,6 +68,8 @@ router.post("/", requireAuth, async (req, res) => {
       total_price,
       entry_amount = 0,
       sale_date,
+      payment_type = "installment",
+      payment_date,
       notes,
       installments = [],
       entry_method = "cash"
@@ -78,6 +82,15 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     await client.query("BEGIN");
+
+    const normalizedPaymentType =
+      payment_type === "cash" ? "cash" : "installment";
+    const normalizedSaleDate =
+      payment_date || sale_date || null; // se vier payment_date, usa como sale_date
+    const normalizedEntryAmount =
+      normalizedPaymentType === "cash" ? total_price : entry_amount;
+    const normalizedInstallments =
+      normalizedPaymentType === "cash" ? [] : installments;
 
     // CPF criptografado + últimos 4 dígitos
     const cpfEncryptedStr = buyer_cpf ? encryptCPF(buyer_cpf) : null;
@@ -118,8 +131,8 @@ router.post("/", requireAuth, async (req, res) => {
         buyer_address,
         list_price,
         total_price,
-        entry_amount,
-        sale_date,
+        normalizedEntryAmount,
+        normalizedSaleDate,
         notes
       ]
     );
@@ -127,7 +140,7 @@ router.post("/", requireAuth, async (req, res) => {
     const sale = saleResult.rows[0];
 
     // 2. Criar parcelas
-    for (const inst of installments) {
+    for (const inst of normalizedInstallments) {
       await client.query(
         `
           INSERT INTO sales_installments (
@@ -143,7 +156,7 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     // 3. Pagamento da entrada (se houver)
-    if (Number(entry_amount) > 0) {
+    if (Number(normalizedEntryAmount) > 0) {
       await client.query(
         `
           INSERT INTO payments (
@@ -156,7 +169,7 @@ router.post("/", requireAuth, async (req, res) => {
           )
           VALUES ($1, NULL, $2, $3, true, $4)
         `,
-        [sale.id, entry_amount, entry_method, "Entrada na venda"]
+        [sale.id, normalizedEntryAmount, entry_method, "Entrada na venda"]
       );
     }
 
@@ -176,7 +189,12 @@ router.post("/", requireAuth, async (req, res) => {
 
     await client.query("COMMIT");
 
-    return res.status(201).json({ sale });
+    return res.status(201).json({
+      sale: {
+        ...sale,
+        payment_type: normalizedPaymentType,
+      },
+    });
 
   } catch (err) {
     await client.query("ROLLBACK");
@@ -200,9 +218,15 @@ router.get("/", requireAuth, async (req, res) => {
           v.brand,
           v.model,
           v.year,
-          v.plate
+          v.plate,
+          COALESCE(insts.installments_count, 0) AS installments_count
         FROM sales s
         LEFT JOIN vehicles v ON v.id = s.vehicle_id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS installments_count
+          FROM sales_installments si
+          WHERE si.sale_id = s.id
+        ) AS insts ON TRUE
         ORDER BY s.created_at DESC
       `
     );
@@ -210,6 +234,8 @@ router.get("/", requireAuth, async (req, res) => {
     // opcional: mascara cpf
     const mapped = rows.map((row) => ({
       ...row,
+      payment_type:
+        (row.installments_count || 0) > 0 ? "installment" : "cash",
       masked_cpf: row.buyer_cpf_last4
         ? `***.***.***-${row.buyer_cpf_last4}`
         : null
@@ -264,6 +290,10 @@ router.get("/:id", requireAuth, async (req, res) => {
     return res.json({
       sale: {
         ...sale,
+        payment_type:
+          (installmentsResult.rows?.length || 0) > 0
+            ? "installment"
+            : "cash",
         masked_cpf: sale.buyer_cpf_last4
           ? `***.***.***-${sale.buyer_cpf_last4}`
           : null
