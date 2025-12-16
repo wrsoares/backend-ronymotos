@@ -102,17 +102,23 @@ export function convertDocxToPdf(docxTmpFile) {
       }
 
       // Fallback: docker com sudo (libreoffice container)
-      console.warn("soffice não disponível, tentando via docker (sudo)...");
+      console.warn("soffice não disponível, tentando via docker (sudo) com entrypoint libreoffice...");
       const dockerArgs = [
         "docker",
         "run",
         "--rm",
         "-v",
         `${outputDir}:/workspace`,
+        "-w",
+        "/workspace",
+        "--entrypoint",
+        "libreoffice",
         "ghcr.io/linuxserver/libreoffice:latest",
         "--headless",
         "--convert-to",
         "pdf",
+        "--outdir",
+        "/workspace",
         fileName,
       ];
 
