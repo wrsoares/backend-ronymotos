@@ -4,6 +4,7 @@ import { pool } from "../config/db.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { generateFilledDocx, convertDocxToPdf } from "../utils/contractGenerator.js";
 import fs from "fs";
+import { decryptCPF } from "../utils/cpfCrypto.js";
 
 const router = express.Router();
 
@@ -85,11 +86,19 @@ router.get("/:saleId/pdf", async (req, res) => {
     const condicoesPagamento = paragrafoParcelado
       ? `${paragrafoBase}\n\n${paragrafoParcelado}`
       : paragrafoBase;
+    let cpfClaro = "";
+    try {
+      cpfClaro = sale.buyer_cpf_encrypted ? decryptCPF(sale.buyer_cpf_encrypted) : "";
+    } catch (e) {
+      console.error("Erro ao decifrar CPF para contrato:", e?.message || e);
+    }
+    const cpfMasked = sale.buyer_cpf_last4 ? `***.***.***-${sale.buyer_cpf_last4}` : "";
+    const cpfParaContrato = cpfClaro || cpfMasked;
 
     // 2. Monta o objeto de dados para o template DOCX (as chaves {{...}})
     const contractData = {
       comprador: sale.buyer_name,
-      comprador_cpf: sale.buyer_cpf_last4 ? `***.***.***-${sale.buyer_cpf_last4}` : "",
+      comprador_cpf: cpfParaContrato,
       comprador_endereco: sale.buyer_address || "",
       comprador_telefone: sale.buyer_phone || "",
 

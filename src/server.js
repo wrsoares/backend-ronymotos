@@ -11,6 +11,7 @@ import authRouter from "./routes/auth.js";
 import uploadsRouter from "./routes/uploads.js";
 import salesRouter from "./routes/sales.js";
 import contractsRouter from "./routes/contracts.js";
+import payablesRouter from "./routes/payables.js";
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -82,6 +83,9 @@ app.use("/uploads", uploadsRouter);
 
 // ===== Rotas de vendas =====
 app.use("/sales", salesRouter);
+
+// ===== Contas a pagar =====
+app.use("/payables", payablesRouter);
 
 // ===== Geração de contrato =====
 app.use("/contracts", contractsRouter);
