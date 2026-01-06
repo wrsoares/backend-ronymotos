@@ -1,12 +1,13 @@
 // src/routes/payables.js
 import express from "express";
 import { pool } from "../config/db.js";
-import { requireAuth } from "../middlewares/requireAuth.js";
+import { requireAuth, requireRole } from "../middlewares/requireAuth.js";
 
 const router = express.Router();
+router.use(requireAuth, requireRole("admin"));
 
 // Lista contas (opcional filtro por status)
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", async (req, res) => {
   const { status } = req.query;
   try {
     const params = [];
@@ -32,7 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // Cria conta a pagar
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", async (req, res) => {
   const { title, amount, due_date, notes } = req.body;
 
   if (!title || !amount || !due_date) {
@@ -56,7 +57,7 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // Atualiza conta a pagar
-router.put("/:id", requireAuth, async (req, res) => {
+router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const { title, amount, due_date, status, notes } = req.body;
 
@@ -86,7 +87,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 });
 
 // Marca como pago
-router.patch("/:id/pay", requireAuth, async (req, res) => {
+router.patch("/:id/pay", async (req, res) => {
   const { id } = req.params;
   try {
     const { rows, rowCount } = await pool.query(
