@@ -134,14 +134,18 @@ router.get("/plate/download", async (req, res) => {
       const data = await resp.json().catch(() => ({}));
       const status = data?.status || data?.situacao || "em_processamento";
       const protocoloToUpdate = protocolo || data?.protocolo || null;
+      const urlPdf = data?.dados?.url_pdf || null;
       if (protocoloToUpdate) {
         await pool.query(
           `
             UPDATE plate_queries
-            SET status = $1, raw_response = $2, updated_at = NOW()
+            SET status = $1,
+                raw_response = $2,
+                link_resultado = COALESCE($4, link_resultado),
+                updated_at = NOW()
             WHERE protocolo = $3
           `,
-          [status, data || {}, protocoloToUpdate]
+          [status, data || {}, protocoloToUpdate, urlPdf]
         );
       }
       return res.status(resp.status).json(data);
