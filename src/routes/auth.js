@@ -237,6 +237,39 @@ router.get("/me", requireAuth, async (req, res) => {
 });
 
 // ==========================================================================
+// UPDATE PROFILE
+// ==========================================================================
+router.put("/me", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.user;
+    const { name, email, phone } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ ok: false, error: "Nome é obrigatório." });
+    }
+
+    const { rows } = await pool.query(
+      `
+      UPDATE users
+      SET name = $1, email = $2, phone = $3, updated_at = NOW()
+      WHERE id = $4
+      RETURNING id, name, username, email, phone, role, created_at
+      `,
+      [name, email || null, phone || null, id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, error: "Usuário não encontrado." });
+    }
+
+    res.json({ ok: true, user: rows[0] });
+  } catch (err) {
+    console.error("UPDATE PROFILE error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ==========================================================================
 // CHANGE PASSWORD
 // ==========================================================================
 router.post("/change-password", requireAuth, async (req, res) => {
