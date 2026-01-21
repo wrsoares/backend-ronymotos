@@ -236,4 +236,46 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+// ==========================================================================
+// CHANGE PASSWORD
+// ==========================================================================
+router.post("/change-password", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.user;
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({
+        ok: false,
+        error: "Informe a senha atual e a nova senha.",
+      });
+    }
+
+    const { rows } = await pool.query(
+      "SELECT password_hash FROM users WHERE id = $1 LIMIT 1",
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, error: "Usuário não encontrado." });
+    }
+
+    const valid = await bcrypt.compare(current_password, rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ ok: false, error: "Senha atual inválida." });
+    }
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await pool.query(
+      "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+      [hash, id]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("CHANGE PASSWORD error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 export default router;
