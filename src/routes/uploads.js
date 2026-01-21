@@ -82,4 +82,20 @@ router.get("/images/:key", requireAuth, async (req, res) => {
   }
 });
 
+// ========= GET /uploads/public/images/:key (acesso público) =========
+router.get("/public/images/:key", async (req, res) => {
+  try {
+    const rawKey = req.params.key;
+    const key = decodeURIComponent(rawKey);
+
+    const { stream, contentType } = await getObjectFromS3(key);
+
+    res.setHeader("Content-Type", contentType || "application/octet-stream");
+    stream.pipe(res);
+  } catch (err) {
+    console.error("GET /uploads/public/images/:key error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 export default router;
