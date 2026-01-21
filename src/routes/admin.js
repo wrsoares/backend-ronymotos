@@ -1,5 +1,6 @@
 // src/routes/admin.js
 import express from "express";
+import bcrypt from "bcryptjs";
 import { pool } from "../config/db.js";
 import { requireAuth, requireRole } from "../middlewares/requireAuth.js";
 
@@ -111,6 +112,102 @@ router.post("/plate/consult", async (req, res) => {
   } catch (err) {
     console.error("Erro ao consultar placa externamente", err);
     return res.status(500).json({ error: "Erro ao consultar placa." });
+  }
+});
+
+// ==========================================================================
+// USERS (ADMIN)
+// ==========================================================================
+router.get("/users", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT id, name, username, email, phone, role, is_active, created_at
+      FROM users
+      ORDER BY created_at DESC
+      `
+    );
+
+    return res.json({ ok: true, users: rows });
+  } catch (err) {
+    console.error("GET /admin/users error:", err);
+    return res.status(500).json({ ok: false, error: "Erro ao listar usuários." });
+  }
+});
+
+router.post("/users", async (req, res) => {
+  try {
+    const { name, username, email, phone, password, role = "user" } = req.body;
+
+    if (!name || !username || !password) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Nome, username e senha são obrigatórios." });
+    }
+
+    const existsUsername = await pool.query(
+      "SELECT 1 FROM users WHERE username = $1",
+      [username]
+    );
+    if (existsUsername.rows.length) {
+      return res.status(409).json({ ok: false, error: "Username já está em uso." });
+    }
+
+    if (phone) {
+      const existsPhone = await pool.query(
+        "SELECT 1 FROM users WHERE phone = $1",
+        [phone]
+      );
+      if (existsPhone.rows.length) {
+        return res.status(409).json({ ok: false, error: "Telefone já está em uso." });
+      }
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const { rows } = await pool.query(
+      `
+      INSERT INTO users (name, username, email, phone, password_hash, role)
+      VALUES ($1,$2,$3,$4,$5,$6)
+      RETURNING id, name, username, email, phone, role, is_active, created_at
+      `,
+      [name, username, email || null, phone || null, hash, role]
+    );
+
+    return res.status(201).json({ ok: true, user: rows[0] });
+  } catch (err) {
+    console.error("POST /admin/users error:", err);
+    return res.status(500).json({ ok: false, error: "Erro ao criar usuário." });
+  }
+});
+
+router.patch("/users/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({ ok: false, error: "is_active inválido." });
+    }
+
+    const { rows } = await pool.query(
+      `
+      UPDATE users
+      SET is_active = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, name, username, email, phone, role, is_active, created_at
+      `,
+      [is_active, id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, error: "Usuário não encontrado." });
+    }
+
+    return res.json({ ok: true, user: rows[0] });
+  } catch (err) {
+    console.error("PATCH /admin/users/:id/status error:", err);
+    return res.status(500).json({ ok: false, error: "Erro ao atualizar usuário." });
   }
 });
 

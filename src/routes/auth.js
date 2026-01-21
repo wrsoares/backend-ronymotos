@@ -113,6 +113,10 @@ router.post("/login", async (req, res) => {
 
     const user = rows[0];
 
+    if (user.is_active === false) {
+      return res.status(403).json({ ok: false, error: "Usuário desativado." });
+    }
+
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid)
       return res.status(401).json({ ok: false, error: "Credenciais inválidas." });
@@ -135,7 +139,8 @@ router.post("/login", async (req, res) => {
         email: user.email,
         phone: user.phone,       // ← TELEFONE AQUI
         role: user.role,
-        profile_photo_url: user.profile_photo_url || null
+        profile_photo_url: user.profile_photo_url || null,
+        is_active: user.is_active ?? true
       }
     });
 
@@ -226,7 +231,7 @@ router.get("/me", requireAuth, async (req, res) => {
     const { id } = req.user;
 
     const { rows } = await pool.query(
-      `SELECT id, name, username, email, phone, role, profile_photo_url, created_at FROM users WHERE id = $1`,
+      `SELECT id, name, username, email, phone, role, profile_photo_url, is_active, created_at FROM users WHERE id = $1`,
       [id]
     );
 
@@ -250,7 +255,7 @@ router.put("/photo", requireAuth, async (req, res) => {
       UPDATE users
       SET profile_photo_url = $1, updated_at = NOW()
       WHERE id = $2
-      RETURNING id, name, username, email, phone, role, profile_photo_url, created_at
+      RETURNING id, name, username, email, phone, role, profile_photo_url, is_active, created_at
       `,
       [profile_photo_url || null, id]
     );
@@ -283,7 +288,7 @@ router.put("/me", requireAuth, async (req, res) => {
       UPDATE users
       SET name = $1, email = $2, phone = $3, updated_at = NOW()
       WHERE id = $4
-      RETURNING id, name, username, email, phone, role, profile_photo_url, created_at
+      RETURNING id, name, username, email, phone, role, profile_photo_url, is_active, created_at
       `,
       [name, email || null, phone || null, id]
     );
