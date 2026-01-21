@@ -134,7 +134,8 @@ router.post("/login", async (req, res) => {
         username: user.username,
         email: user.email,
         phone: user.phone,       // ← TELEFONE AQUI
-        role: user.role
+        role: user.role,
+        profile_photo_url: user.profile_photo_url || null
       }
     });
 
@@ -225,13 +226,42 @@ router.get("/me", requireAuth, async (req, res) => {
     const { id } = req.user;
 
     const { rows } = await pool.query(
-      `SELECT id, name, username, email, phone, role, created_at FROM users WHERE id = $1`,
+      `SELECT id, name, username, email, phone, role, profile_photo_url, created_at FROM users WHERE id = $1`,
       [id]
     );
 
     res.json({ ok: true, user: rows[0] });
   } catch (err) {
     console.error("ME error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ==========================================================================
+// UPDATE PROFILE PHOTO
+// ==========================================================================
+router.put("/photo", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.user;
+    const { profile_photo_url } = req.body;
+
+    const { rows } = await pool.query(
+      `
+      UPDATE users
+      SET profile_photo_url = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, name, username, email, phone, role, profile_photo_url, created_at
+      `,
+      [profile_photo_url || null, id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, error: "Usuário não encontrado." });
+    }
+
+    res.json({ ok: true, user: rows[0] });
+  } catch (err) {
+    console.error("UPDATE PHOTO error:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
@@ -253,7 +283,7 @@ router.put("/me", requireAuth, async (req, res) => {
       UPDATE users
       SET name = $1, email = $2, phone = $3, updated_at = NOW()
       WHERE id = $4
-      RETURNING id, name, username, email, phone, role, created_at
+      RETURNING id, name, username, email, phone, role, profile_photo_url, created_at
       `,
       [name, email || null, phone || null, id]
     );
