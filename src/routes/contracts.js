@@ -24,17 +24,32 @@ router.get("/:saleId/pdf", async (req, res) => {
     // 1. Busca dados da venda + veículo
     const { rows } = await client.query(
       `
-      SELECT
-        s.*,
-        v.brand,
-        v.model,
-        v.year,
-        v.color,
-        v.plate,
-        v.chassis
-      FROM sales s
-      JOIN vehicles v ON v.id = s.vehicle_id
-      WHERE s.id = $1
+      SELECT *
+      FROM (
+        SELECT
+          s.*,
+          v.brand,
+          v.model,
+          v.year,
+          v.color,
+          v.plate,
+          v.chassis,
+          CONCAT(
+            TO_CHAR(s.sale_date, 'YYYY'),
+            '_',
+            LPAD(
+              ROW_NUMBER() OVER (
+                PARTITION BY DATE_TRUNC('year', s.sale_date)
+                ORDER BY s.sale_date, s.id
+              )::text,
+              3,
+              '0'
+            )
+          ) AS receipt_number
+        FROM sales s
+        JOIN vehicles v ON v.id = s.vehicle_id
+      ) ranked
+      WHERE ranked.id = $1
       `,
       [saleId]
     );
@@ -88,7 +103,11 @@ router.get("/:saleId/pdf", async (req, res) => {
       : paragrafoBase;
     let cpfClaro = "";
     try {
-      cpfClaro = sale.buyer_cpf_encrypted ? decryptCPF(sale.buyer_cpf_encrypted) : "";
+      let cpfEncryptedValue = sale.buyer_cpf_encrypted || "";
+      if (cpfEncryptedValue && Buffer.isBuffer(cpfEncryptedValue)) {
+        cpfEncryptedValue = cpfEncryptedValue.toString("utf8");
+      }
+      cpfClaro = cpfEncryptedValue ? decryptCPF(cpfEncryptedValue) : "";
     } catch (e) {
       console.error("Erro ao decifrar CPF para contrato:", e?.message || e);
     }
@@ -96,11 +115,14 @@ router.get("/:saleId/pdf", async (req, res) => {
     const cpfParaContrato = cpfClaro || cpfMasked;
 
     // 2. Monta o objeto de dados para o template DOCX (as chaves {{...}})
+    const receiptNumber = sale.receipt_number || "";
     const contractData = {
       comprador: sale.buyer_name,
       comprador_cpf: cpfParaContrato,
       comprador_endereco: sale.buyer_address || "",
       comprador_telefone: sale.buyer_phone || "",
+      numero_contrato: receiptNumber,
+      numero_recibo: receiptNumber,
 
       tipo_pagamento: tipoPagamentoStr,
       condicoes_pagamento: condicoesPagamento,

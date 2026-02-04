@@ -34,6 +34,8 @@ const PLACEHOLDERS = [
   "dia_venda",
   "mes_venda",
   "ano_venda",
+  "numero_contrato",
+  "numero_recibo",
 ];
 
 function escapeXml(str = "") {

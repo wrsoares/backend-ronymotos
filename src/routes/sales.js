@@ -139,6 +139,32 @@ router.post("/", requireAuth, async (req, res) => {
 
     const sale = saleResult.rows[0];
 
+    const receiptNumberResult = await client.query(
+      `
+        SELECT receipt_number
+        FROM (
+          SELECT
+            s.id,
+            CONCAT(
+              TO_CHAR(s.sale_date, 'YYYY'),
+              '_',
+              LPAD(
+                ROW_NUMBER() OVER (
+                  PARTITION BY DATE_TRUNC('year', s.sale_date)
+                  ORDER BY s.sale_date, s.id
+                )::text,
+                3,
+                '0'
+              )
+            ) AS receipt_number
+          FROM sales s
+        ) ranked
+        WHERE ranked.id = $1
+      `,
+      [sale.id]
+    );
+    const receiptNumber = receiptNumberResult.rows?.[0]?.receipt_number || null;
+
     // 2. Criar parcelas
     for (const inst of normalizedInstallments) {
       await client.query(
@@ -193,6 +219,8 @@ router.post("/", requireAuth, async (req, res) => {
       sale: {
         ...sale,
         payment_type: normalizedPaymentType,
+        receipt_number: receiptNumber,
+        contract_number: receiptNumber,
       },
     });
 
@@ -219,7 +247,19 @@ router.get("/", requireAuth, async (req, res) => {
           v.model,
           v.year,
           v.plate,
-          COALESCE(insts.installments_count, 0) AS installments_count
+          COALESCE(insts.installments_count, 0) AS installments_count,
+          CONCAT(
+            TO_CHAR(s.sale_date, 'YYYY'),
+            '_',
+            LPAD(
+              ROW_NUMBER() OVER (
+                PARTITION BY DATE_TRUNC('year', s.sale_date)
+                ORDER BY s.sale_date, s.id
+              )::text,
+              3,
+              '0'
+            )
+          ) AS receipt_number
         FROM sales s
         LEFT JOIN vehicles v ON v.id = s.vehicle_id
         LEFT JOIN LATERAL (
@@ -236,6 +276,8 @@ router.get("/", requireAuth, async (req, res) => {
       ...row,
       payment_type:
         (row.installments_count || 0) > 0 ? "installment" : "cash",
+      receipt_number: row.receipt_number || null,
+      contract_number: row.receipt_number || null,
       masked_cpf: row.buyer_cpf_last4
         ? `***.***.***-${row.buyer_cpf_last4}`
         : null
@@ -257,7 +299,27 @@ router.get("/:id", requireAuth, async (req, res) => {
 
   try {
     const saleResult = await pool.query(
-      `SELECT * FROM sales WHERE id = $1`,
+      `
+        SELECT *
+        FROM (
+          SELECT
+            s.*,
+            CONCAT(
+              TO_CHAR(s.sale_date, 'YYYY'),
+              '_',
+              LPAD(
+                ROW_NUMBER() OVER (
+                  PARTITION BY DATE_TRUNC('year', s.sale_date)
+                  ORDER BY s.sale_date, s.id
+                )::text,
+                3,
+                '0'
+              )
+            ) AS receipt_number
+          FROM sales s
+        ) ranked
+        WHERE ranked.id = $1
+      `,
       [id]
     );
 
@@ -294,6 +356,8 @@ router.get("/:id", requireAuth, async (req, res) => {
           (installmentsResult.rows?.length || 0) > 0
             ? "installment"
             : "cash",
+        receipt_number: sale.receipt_number || null,
+        contract_number: sale.receipt_number || null,
         masked_cpf: sale.buyer_cpf_last4
           ? `***.***.***-${sale.buyer_cpf_last4}`
           : null
